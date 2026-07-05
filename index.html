@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Executive Briefing Generator | cosmik.work</title>
+<meta name="description" content="Paste a messy day's notes, emails, and half-formed to-dos. Get back a clean executive brief: top priorities, decisions needed, what to delegate, what can wait.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,500&family=Inter+Tight:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#0a0a0f;
+  --ink-2:#12121e;
+  --card:#151426;
+  --card-2:#0a0a15;
+  --text:#f5f5f7;
+  --text-2:#a1a1aa;
+  --accent:#7c5cff;
+  --accent-bright:#a78bfa;
+  --line:rgba(167,139,250,.16);
+  --ok:#5cd6a3;
+  --warn:#f6c177;
+  --ease:cubic-bezier(.16,1,.3,1);
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{
+  background:var(--ink);
+  color:var(--text);
+  font-family:'Inter Tight',sans-serif;
+  line-height:1.6;
+  min-height:100vh;
+  /* subtle static star sprinkle, no canvas needed */
+  background-image:
+    radial-gradient(1px 1px at 12% 22%, rgba(245,245,247,.35) 50%, transparent 51%),
+    radial-gradient(1px 1px at 78% 12%, rgba(245,245,247,.25) 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 60% 68%, rgba(167,139,250,.4) 50%, transparent 51%),
+    radial-gradient(1px 1px at 30% 82%, rgba(245,245,247,.3) 50%, transparent 51%),
+    radial-gradient(1px 1px at 90% 50%, rgba(245,245,247,.2) 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 45% 35%, rgba(245,245,247,.25) 50%, transparent 51%);
+}
+main{max-width:860px;margin:0 auto;padding:56px 24px 96px;}
+
+.eyebrow{
+  font-family:'JetBrains Mono',monospace;
+  font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--accent-bright);margin-bottom:14px;
+}
+h1{
+  font-family:'Fraunces',serif;
+  font-size:clamp(2.2rem,5.5vw,3.4rem);
+  font-weight:500;letter-spacing:-.02em;line-height:1.1;
+}
+h1 em{font-style:italic;color:var(--accent-bright);}
+.sub{color:var(--text-2);max-width:56ch;margin-top:16px;font-size:1.02rem;}
+
+.input-wrap{margin-top:44px;}
+textarea{
+  width:100%;min-height:260px;resize:vertical;
+  background:linear-gradient(180deg,var(--card) 0%,var(--card-2) 100%);
+  border:1px solid var(--line);border-radius:18px;
+  color:var(--text);font-family:'Inter Tight',sans-serif;font-size:.98rem;line-height:1.6;
+  padding:22px;outline:none;
+  transition:border-color .3s var(--ease);
+}
+textarea:focus{border-color:rgba(167,139,250,.5);}
+textarea::placeholder{color:#55555f;}
+.input-foot{
+  display:flex;align-items:center;justify-content:space-between;gap:16px;
+  margin-top:16px;flex-wrap:wrap;
+}
+.privacy-note{
+  font-size:.82rem;color:var(--text-2);max-width:48ch;
+}
+.privacy-note strong{color:var(--accent-bright);font-weight:500;}
+button.generate{
+  font-family:'Inter Tight',sans-serif;font-size:.95rem;font-weight:500;
+  background:var(--accent);color:#fff;border:none;border-radius:999px;
+  padding:13px 30px;cursor:pointer;
+  transition:background .3s var(--ease),transform .3s var(--ease);
+  white-space:nowrap;
+}
+button.generate:hover{background:#6a4be0;transform:translateY(-1px);}
+button.generate:disabled{background:#3a3550;cursor:not-allowed;transform:none;}
+
+.status{
+  margin-top:28px;font-family:'JetBrains Mono',monospace;font-size:.82rem;
+  color:var(--text-2);display:none;align-items:center;gap:10px;
+}
+.status.visible{display:flex;}
+.pulse{
+  width:8px;height:8px;border-radius:50%;background:var(--accent-bright);
+  animation:pulse 1.4s ease-in-out infinite;flex-shrink:0;
+}
+@keyframes pulse{0%,100%{opacity:.3;}50%{opacity:1;}}
+@media(prefers-reduced-motion:reduce){.pulse{animation:none;opacity:1;}}
+.status.error{color:#ff8a8a;}
+.status.error .pulse{background:#ff8a8a;animation:none;}
+
+/* ===== the brief itself ~ rendered like a crisp morning memo ===== */
+#brief{display:none;margin-top:52px;}
+#brief.visible{display:block;}
+.brief-doc{
+  background:linear-gradient(180deg,var(--card) 0%,var(--card-2) 100%);
+  border:1px solid var(--line);border-radius:24px;overflow:hidden;
+  box-shadow:0 24px 60px -30px rgba(124,92,255,.35);
+}
+.brief-band{
+  padding:26px 32px;border-bottom:1px solid var(--line);
+  background:rgba(124,92,255,.07);
+}
+.brief-band .label{
+  font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--accent-bright);margin-bottom:8px;
+}
+.brief-band .headline{
+  font-family:'Fraunces',serif;font-size:1.5rem;font-weight:500;
+  letter-spacing:-.01em;line-height:1.3;
+}
+.brief-section{padding:26px 32px;border-bottom:1px solid var(--line);}
+.brief-section:last-of-type{border-bottom:none;}
+.brief-section h2{
+  font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.14em;
+  text-transform:uppercase;font-weight:500;margin-bottom:16px;
+}
+.brief-section.s-priorities h2{color:var(--accent-bright);}
+.brief-section.s-decisions h2{color:var(--warn);}
+.brief-section.s-delegate h2{color:var(--ok);}
+.brief-section.s-wait h2{color:var(--text-2);}
+.brief-item{margin-bottom:14px;}
+.brief-item:last-child{margin-bottom:0;}
+.brief-item .bi-main{font-weight:500;font-size:1rem;}
+.brief-item .bi-sub{color:var(--text-2);font-size:.88rem;margin-top:2px;}
+.wait-list{color:var(--text-2);font-size:.92rem;}
+.wait-list span{display:inline-block;}
+.wait-list span:not(:last-child)::after{content:" · ";color:#4a4a55;}
+
+.audit-box{
+  margin-top:16px;padding:18px 22px;border-radius:14px;
+  border:1px dashed rgba(167,139,250,.3);
+  font-size:.85rem;color:var(--text-2);
+}
+.audit-box .ab-title{
+  font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--accent-bright);margin-bottom:8px;
+}
+.audit-box p{margin-bottom:4px;}
+.audit-box p:last-child{margin-bottom:0;}
+
+.brief-actions{margin-top:20px;display:flex;gap:12px;flex-wrap:wrap;}
+.btn-ghost{
+  font-family:'Inter Tight',sans-serif;font-size:.88rem;font-weight:500;
+  background:transparent;color:var(--accent-bright);
+  border:1px solid rgba(167,139,250,.35);border-radius:999px;
+  padding:10px 22px;cursor:pointer;
+  transition:border-color .3s var(--ease),background .3s var(--ease);
+}
+.btn-ghost:hover{border-color:var(--accent-bright);background:rgba(124,92,255,.08);}
+
+footer{
+  max-width:860px;margin:0 auto;padding:0 24px 48px;
+  font-size:.82rem;color:var(--text-2);
+  display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;
+}
+footer a{color:var(--accent-bright);text-decoration:none;}
+footer a:hover{text-decoration:underline;}
+
+:focus-visible{outline:2px solid var(--accent-bright);outline-offset:2px;}
+
+@media(max-width:640px){
+  .brief-band,.brief-section{padding:20px 20px;}
+}
+</style>
+</head>
+<body>
+
+<main>
+  <p class="eyebrow">cosmik.work · 05 ~ Founder Ops</p>
+  <h1>Your day's chaos,<br>briefed in <em>60 seconds.</em></h1>
+  <p class="sub">Paste the raw mess ~ meeting fragments, email snippets, Slack pings, half-formed to-dos. Get back what a Chief of Staff would hand you: top priorities, decisions only you can make, what to hand off, and what can genuinely wait.</p>
+
+  <div class="input-wrap">
+    <label for="raw" class="visually-hidden" style="position:absolute;left:-9999px;">Raw notes</label>
+    <textarea id="raw" placeholder="Dump everything here. Example:
+
+- standup: Priya blocked on API keys, needs them by EOD
+- investor email from Rahul, wants updated MRR numbers before Thursday call
+- renewal quote from hosting vendor expires Friday, 12% increase
+- someone should fix the broken signup link on the pricing page
+- interview candidate no-showed, reschedule?
+- idea: monthly customer newsletter??"></textarea>
+    <div class="input-foot">
+      <p class="privacy-note"><strong>Privacy guardrail:</strong> emails and phone numbers are stripped from your text on the server before anything reaches the AI. Nothing you paste is stored beyond the generated brief.</p>
+      <button class="generate" id="go">Generate brief</button>
+    </div>
+  </div>
+
+  <div class="status" id="status"><span class="pulse"></span><span id="statusText">Working…</span></div>
+
+  <section id="brief" aria-live="polite">
+    <div class="brief-doc">
+      <div class="brief-band">
+        <p class="label" id="briefDate">Executive Brief</p>
+        <p class="headline" id="headline"></p>
+      </div>
+      <div class="brief-section s-priorities">
+        <h2>Top priorities · max 3</h2>
+        <div id="priorities"></div>
+      </div>
+      <div class="brief-section s-decisions">
+        <h2>Decisions only you can make</h2>
+        <div id="decisions"></div>
+      </div>
+      <div class="brief-section s-delegate">
+        <h2>Hand these off</h2>
+        <div id="delegate"></div>
+      </div>
+      <div class="brief-section s-wait">
+        <h2>Can wait</h2>
+        <p class="wait-list" id="canWait"></p>
+      </div>
+    </div>
+
+    <div class="audit-box" id="auditBox" style="display:none;">
+      <p class="ab-title">Auditor pass · second AI checked the first one's work</p>
+      <div id="auditFlags"></div>
+    </div>
+
+    <div class="brief-actions">
+      <button class="btn-ghost" id="copyBtn">Copy as text</button>
+      <button class="btn-ghost" id="againBtn">Start over</button>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <span>Built by <a href="https://cosmik.work" target="_blank" rel="noopener">Soumik Chatterjee · cosmik.work</a></span>
+  <span><a href="https://github.com/pymikofficial/executive-briefing-generator" target="_blank" rel="noopener">Source on GitHub</a></span>
+</footer>
+
+<script>
+(function(){
+  const go = document.getElementById('go');
+  const raw = document.getElementById('raw');
+  const statusEl = document.getElementById('status');
+  const statusText = document.getElementById('statusText');
+  const briefEl = document.getElementById('brief');
+
+  const POLL_MS = 2000;
+  const MAX_POLLS = 45; // ~90s ceiling
+
+  let lastBriefText = '';
+
+  go.addEventListener('click', start);
+  document.getElementById('againBtn').addEventListener('click', () => {
+    briefEl.classList.remove('visible');
+    raw.value = '';
+    raw.focus();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+  document.getElementById('copyBtn').addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(lastBriefText);
+      const b = document.getElementById('copyBtn');
+      const t = b.textContent;
+      b.textContent = 'Copied ✓';
+      setTimeout(() => { b.textContent = t; }, 1500);
+    } catch (e) {}
+  });
+
+  async function start(){
+    const text = raw.value.trim();
+    if (!text) { raw.focus(); return; }
+
+    const jobId = (crypto.randomUUID ? crypto.randomUUID()
+      : 'job-' + Date.now() + '-' + Math.random().toString(36).slice(2));
+
+    go.disabled = true;
+    briefEl.classList.remove('visible');
+    setStatus('Scrubbing and drafting your brief…', false);
+
+    try {
+      await fetch('/.netlify/functions/generate-brief-background', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jobId, text })
+      });
+    } catch (e) {
+      return fail('Could not reach the server. Check your connection and try again.');
+    }
+
+    let polls = 0;
+    const timer = setInterval(async () => {
+      polls++;
+      if (polls > MAX_POLLS) {
+        clearInterval(timer);
+        return fail('Timed out. The server may be busy ~ try again in a minute.');
+      }
+      if (polls === 8) setStatus('Auditor is double-checking the draft…', false);
+
+      try {
+        const res = await fetch('/.netlify/functions/check-brief?jobId=' + encodeURIComponent(jobId));
+        const data = await res.json();
+        if (data.status === 'done') {
+          clearInterval(timer);
+          render(data);
+        } else if (data.status === 'error') {
+          clearInterval(timer);
+          fail(data.message || 'Generation failed.');
+        }
+      } catch (e) { /* transient poll failure, keep going */ }
+    }, POLL_MS);
+  }
+
+  function setStatus(msg, isError){
+    statusEl.classList.add('visible');
+    statusEl.classList.toggle('error', !!isError);
+    statusText.textContent = msg;
+  }
+  function fail(msg){
+    setStatus(msg, true);
+    go.disabled = false;
+  }
+
+  function render(data){
+    const b = data.brief || {};
+    statusEl.classList.remove('visible');
+    go.disabled = false;
+
+    document.getElementById('briefDate').textContent =
+      'Executive Brief · ' + new Date().toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'long' });
+    document.getElementById('headline').textContent = b.headline || '';
+
+    fillItems('priorities', b.priorities, 'item', 'why');
+    fillItems('decisions', b.decisions, 'item', 'context');
+    fillItems('delegate', b.delegate, 'item', 'to_whom', 'Hand to: ');
+
+    const waitEl = document.getElementById('canWait');
+    waitEl.innerHTML = '';
+    (b.can_wait || []).forEach((w) => {
+      const s = document.createElement('span');
+      s.textContent = w;
+      waitEl.appendChild(s);
+    });
+    if (!(b.can_wait || []).length) waitEl.textContent = 'Nothing ~ it all matters today.';
+
+    const flags = b.audit_flags || [];
+    const auditBox = document.getElementById('auditBox');
+    const flagsEl = document.getElementById('auditFlags');
+    flagsEl.innerHTML = '';
+    if (flags.length) {
+      flags.forEach((f) => {
+        const p = document.createElement('p');
+        p.textContent = '· ' + f;
+        flagsEl.appendChild(p);
+      });
+    } else {
+      const p = document.createElement('p');
+      p.textContent = 'Draft passed clean ~ nothing significant was missed or invented.';
+      flagsEl.appendChild(p);
+    }
+    auditBox.style.display = 'block';
+
+    lastBriefText = toPlainText(b);
+    briefEl.classList.add('visible');
+    briefEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function fillItems(id, items, mainKey, subKey, subPrefix){
+    const el = document.getElementById(id);
+    el.innerHTML = '';
+    (items || []).forEach((it) => {
+      const d = document.createElement('div');
+      d.className = 'brief-item';
+      const m = document.createElement('p');
+      m.className = 'bi-main';
+      m.textContent = it[mainKey] || '';
+      d.appendChild(m);
+      if (it[subKey]) {
+        const s = document.createElement('p');
+        s.className = 'bi-sub';
+        s.textContent = (subPrefix || '') + it[subKey];
+        d.appendChild(s);
+      }
+      el.appendChild(d);
+    });
+    if (!(items || []).length) {
+      const p = document.createElement('p');
+      p.className = 'bi-sub';
+      p.textContent = 'None today.';
+      el.appendChild(p);
+    }
+  }
+
+  function toPlainText(b){
+    const lines = ['EXECUTIVE BRIEF', ''];
+    if (b.headline) { lines.push(b.headline, ''); }
+    lines.push('TOP PRIORITIES');
+    (b.priorities || []).forEach((p, i) => lines.push((i+1) + '. ' + p.item + (p.why ? ' (' + p.why + ')' : '')));
+    lines.push('', 'DECISIONS NEEDED');
+    (b.decisions || []).forEach((d) => lines.push('- ' + d.item + (d.context ? ' | ' + d.context : '')));
+    lines.push('', 'DELEGATE');
+    (b.delegate || []).forEach((d) => lines.push('- ' + d.item + (d.to_whom ? ' -> ' + d.to_whom : '')));
+    lines.push('', 'CAN WAIT');
+    (b.can_wait || []).forEach((w) => lines.push('- ' + w));
+    return lines.join('\n');
+  }
+})();
+</script>
+
+</body>
+</html>

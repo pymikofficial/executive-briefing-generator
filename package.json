@@ -1,0 +1,9 @@
+{
+  "name": "executive-briefing-generator",
+  "version": "1.0.0",
+  "description": "Paste a messy day's notes, get back a clean executive brief. Built by Soumik Chatterjee / cosmik.work.",
+  "private": true,
+  "dependencies": {
+    "@netlify/blobs": "^8.1.0"
+  }
+}
