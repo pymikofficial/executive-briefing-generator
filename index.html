@@ -5,6 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Executive Briefing Generator | cosmik.work</title>
 <meta name="description" content="Paste a messy day's notes, emails, and half-formed to-dos. Get back a clean executive brief: top priorities, decisions needed, what to delegate, what can wait.">
+<link rel="canonical" href="https://executive-briefing-generator.netlify.app/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Executive Briefing Generator | cosmik.work">
+<meta property="og:description" content="Paste a messy day's notes, emails, and half-formed to-dos. Get back a clean executive brief: top priorities, decisions needed, what to delegate, what can wait.">
+<meta property="og:url" content="https://executive-briefing-generator.netlify.app/">
+<meta property="og:image" content="https://cosmik.work/img/cosmikwork_broad_logo.webp">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Executive Briefing Generator | cosmik.work">
+<meta name="twitter:description" content="Paste a messy day's notes, emails, and half-formed to-dos. Get back a clean executive brief: top priorities, decisions needed, what to delegate, what can wait.">
+<meta name="twitter:image" content="https://cosmik.work/img/cosmikwork_broad_logo.webp">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,500&family=Inter+Tight:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -73,6 +83,9 @@ textarea::placeholder{color:#83838f;}
 .privacy-note{
   font-size:.82rem;color:var(--text-2);max-width:48ch;
 }
+.char-count{font-family:'JetBrains Mono',monospace;font-size:.78rem;color:var(--text-2);text-align:right;margin-top:6px;}
+.char-count.warn{color:var(--warn);}
+.char-count.over{color:var(--rec);}
 .privacy-note strong{color:var(--accent-bright);font-weight:500;}
 button.generate{
   font-family:'Inter Tight',sans-serif;font-size:.95rem;font-weight:500;
@@ -167,6 +180,12 @@ footer a{color:var(--accent-bright);text-decoration:none;}
 footer a:hover{text-decoration:underline;}
 
 :focus-visible{outline:2px solid var(--accent-bright);outline-offset:2px;}
+.skip-link{
+  position:absolute;left:-9999px;top:0;z-index:100;
+  background:var(--accent);color:#fff;padding:12px 20px;border-radius:0 0 10px 0;
+  font-family:'JetBrains Mono',monospace;font-size:12px;text-decoration:none;
+}
+.skip-link:focus{left:0;}
 
 @media(max-width:640px){
   .brief-band,.brief-section{padding:20px 20px;}
@@ -175,14 +194,16 @@ footer a:hover{text-decoration:underline;}
 </head>
 <body>
 
-<main>
+<a class="skip-link" href="#main">Skip to content</a>
+
+<main id="main">
   <p class="eyebrow">cosmik.work · 05 ~ Founder Ops</p>
   <h1>Your day's chaos,<br>briefed in <em>60 seconds.</em></h1>
   <p class="sub">Paste the raw mess ~ meeting fragments, email snippets, Slack pings, half-formed to-dos. Get back what a Chief of Staff would hand you: top priorities, decisions only you can make, what to hand off, and what can genuinely wait.</p>
 
   <div class="input-wrap">
     <label for="raw" class="visually-hidden" style="position:absolute;left:-9999px;">Raw notes</label>
-    <textarea id="raw" placeholder="Dump everything here. Example:
+    <textarea id="raw" maxlength="24000" placeholder="Dump everything here. Example:
 
 - standup: Priya blocked on API keys, needs them by EOD
 - investor email from Rahul, wants updated MRR numbers before Thursday call
@@ -190,6 +211,7 @@ footer a:hover{text-decoration:underline;}
 - someone should fix the broken signup link on the pricing page
 - interview candidate no-showed, reschedule?
 - idea: monthly customer newsletter??"></textarea>
+    <p class="char-count" id="rawCount" aria-live="polite">0 / 24000</p>
     <div class="input-foot">
       <p class="privacy-note"><strong>Privacy guardrail:</strong> emails and phone numbers are stripped from your text on the server before anything reaches the AI. Nothing you paste is stored beyond the generated brief.</p>
       <button class="generate" id="go">Generate brief</button>
@@ -242,6 +264,12 @@ footer a:hover{text-decoration:underline;}
 (function(){
   const go = document.getElementById('go');
   const raw = document.getElementById('raw');
+  const rawCount = document.getElementById('rawCount');
+  raw.addEventListener('input', () => {
+    const n = raw.value.length;
+    rawCount.textContent = n + ' / 24000';
+    rawCount.className = 'char-count' + (n >= 24000 ? ' over' : n >= 21600 ? ' warn' : '');
+  });
   const statusEl = document.getElementById('status');
   const statusText = document.getElementById('statusText');
   const briefEl = document.getElementById('brief');
@@ -265,7 +293,12 @@ footer a:hover{text-decoration:underline;}
       const t = b.textContent;
       b.textContent = 'Copied ✓';
       setTimeout(() => { b.textContent = t; }, 1500);
-    } catch (e) {}
+    } catch (e) {
+      const b = document.getElementById('copyBtn');
+      const t = b.textContent;
+      b.textContent = 'Copy failed — select the text manually';
+      setTimeout(() => { b.textContent = t; }, 2500);
+    }
   });
 
   async function start(){
