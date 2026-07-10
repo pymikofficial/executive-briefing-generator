@@ -2,7 +2,7 @@
 
 Paste a messy day's raw material: meeting fragments, email snippets, Slack pings, half-formed to-dos. Get back what a Chief of Staff would hand a founder: top 3 priorities, decisions only the founder can make, what to delegate, and what can genuinely wait.
 
-**Live:** [cosmik-briefing.netlify.app](https://cosmik-briefing.netlify.app)
+**Live:** [executive-briefing-generator.netlify.app](https://executive-briefing-generator.netlify.app)
 
 ## The headache
 

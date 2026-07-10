@@ -39,21 +39,14 @@ exports.handler = async (event) => {
     const today = new Date().toISOString().slice(0, 10);
     const limitStore = getStore({ name: 'rate-limits', ...BLOBS_CONFIG });
     const counterKey = `briefs-${today}`;
-    let count = 0;
-    try {
-      const existing = await limitStore.get(counterKey);
-      count = existing ? parseInt(existing, 10) : 0;
-    } catch (e) {
-      count = 0;
-    }
-    if (count >= DAILY_CAP) {
+    const allowed = await checkAndBumpUsage(limitStore, counterKey, DAILY_CAP);
+    if (!allowed) {
       await store.setJSON(jobId, {
         status: 'error',
         message: "Today's free generation limit has been reached. Come back tomorrow."
       });
       return;
     }
-    await limitStore.set(counterKey, String(count + 1));
 
     // --- Guardrail 2: PII scrub before anything reaches the API ---
     const { scrubbed, scrubCounts } = scrubPII(rawText);
@@ -99,6 +92,32 @@ exports.handler = async (event) => {
 };
 
 // ---------------------------------------------------------------------------
+
+// Netlify Blobs has no conditional/compare-and-swap write, so a true atomic
+// increment isn't possible here. This narrows (does not eliminate) the race
+// window between the check and the write: re-reading right before writing,
+// after a small random delay, makes it less likely that two concurrent
+// requests both act on the same stale count.
+async function checkAndBumpUsage(limitStore, counterKey, cap) {
+  const read = async () => {
+    try {
+      const existing = await limitStore.get(counterKey);
+      return existing ? parseInt(existing, 10) : 0;
+    } catch (e) {
+      return 0;
+    }
+  };
+
+  if ((await read()) >= cap) return false;
+
+  await new Promise((resolve) => setTimeout(resolve, Math.floor(Math.random() * 120)));
+
+  const count = await read();
+  if (count >= cap) return false;
+
+  await limitStore.set(counterKey, String(count + 1));
+  return true;
+}
 
 function scrubPII(text) {
   const scrubCounts = { emails: 0, phones: 0 };
