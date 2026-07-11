@@ -17,8 +17,13 @@ const BLOBS_CONFIG = {
   token: process.env.NETLIFY_BLOBS_TOKEN
 };
 
-const DAILY_CAP = 25; // guardrail: public tool, keep API spend bounded
+const DAILY_CAP = parseInt(process.env.DAILY_CAP || '25', 10); // guardrail: public tool, keep API spend bounded
+const DAILY_CAP_PER_IP = parseInt(process.env.DAILY_CAP_PER_IP || '8', 10); // this tool makes 2 Claude calls per job, so cap tighter per-IP than a single-call tool
 const MAX_INPUT_CHARS = 24000; // ~6k tokens of raw notes, plenty for one day's mess
+
+function clientIp(event) {
+  return ((event.headers && (event.headers['x-nf-client-connection-ip'] || event.headers['x-forwarded-for'])) || 'unknown').split(',')[0].trim();
+}
 
 exports.handler = async (event) => {
   const store = getStore({ name: 'briefs', ...BLOBS_CONFIG });
@@ -26,7 +31,8 @@ exports.handler = async (event) => {
 
   try {
     const body = JSON.parse(event.body || '{}');
-    jobId = body.jobId;
+    const jobIdRaw = (body.jobId || '').toString().slice(0, 64);
+    jobId = /^[a-zA-Z0-9-]{1,64}$/.test(jobIdRaw) ? jobIdRaw : null;
     const rawText = (body.text || '').slice(0, MAX_INPUT_CHARS);
 
     if (!jobId || !rawText.trim()) {
@@ -35,16 +41,14 @@ exports.handler = async (event) => {
 
     await store.setJSON(jobId, { status: 'pending' });
 
-    // --- Guardrail 1: daily rate limit via a Blob counter ---
-    const today = new Date().toISOString().slice(0, 10);
+    // --- Guardrail 1: daily rate limit (global + per-IP) via Blob counters ---
     const limitStore = getStore({ name: 'rate-limits', ...BLOBS_CONFIG });
-    const counterKey = `briefs-${today}`;
-    const allowed = await checkAndBumpUsage(limitStore, counterKey, DAILY_CAP);
-    if (!allowed) {
-      await store.setJSON(jobId, {
-        status: 'error',
-        message: "Today's free generation limit has been reached. Come back tomorrow."
-      });
+    const usage = await checkAndBumpUsage(limitStore, event);
+    if (!usage.ok) {
+      const message = usage.reason === 'ip'
+        ? "You've hit today's per-user generation limit. Check back shortly."
+        : "Today's free generation limit has been reached. Come back tomorrow.";
+      await store.setJSON(jobId, { status: 'error', message });
       return;
     }
 
@@ -98,25 +102,34 @@ exports.handler = async (event) => {
 // window between the check and the write: re-reading right before writing,
 // after a small random delay, makes it less likely that two concurrent
 // requests both act on the same stale count.
-async function checkAndBumpUsage(limitStore, counterKey, cap) {
-  const read = async () => {
+async function checkAndBumpUsage(limitStore, event) {
+  const today = new Date().toISOString().slice(0, 10);
+  const globalKey = `briefs-${today}`;
+  const ipKey = `briefs-${today}-ip-${clientIp(event)}`;
+
+  const read = async (key) => {
     try {
-      const existing = await limitStore.get(counterKey);
+      const existing = await limitStore.get(key);
       return existing ? parseInt(existing, 10) : 0;
     } catch (e) {
       return 0;
     }
   };
 
-  if ((await read()) >= cap) return false;
+  if ((await read(globalKey)) >= DAILY_CAP) return { ok: false, reason: 'global' };
+  if ((await read(ipKey)) >= DAILY_CAP_PER_IP) return { ok: false, reason: 'ip' };
 
   await new Promise((resolve) => setTimeout(resolve, Math.floor(Math.random() * 120)));
 
-  const count = await read();
-  if (count >= cap) return false;
+  const [globalCount, ipCount] = [await read(globalKey), await read(ipKey)];
+  if (globalCount >= DAILY_CAP) return { ok: false, reason: 'global' };
+  if (ipCount >= DAILY_CAP_PER_IP) return { ok: false, reason: 'ip' };
 
-  await limitStore.set(counterKey, String(count + 1));
-  return true;
+  await Promise.all([
+    limitStore.set(globalKey, String(globalCount + 1)),
+    limitStore.set(ipKey, String(ipCount + 1))
+  ]);
+  return { ok: true };
 }
 
 function scrubPII(text) {
